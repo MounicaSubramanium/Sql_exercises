@@ -131,3 +131,47 @@ False	               6	         167.08333333333334	 1.8333333333333333
 ##  (Difficulty Hard)
 ##  columns:  customer_id, first_name, last_name, email, purchase_id, purchase_time,
 ##  total_quantity, total_amount_paid
+
+##Query 6 Solution (without window function)
+select p.customer_id, first_name, last_name, email,
+max(p.purchase_id) as purchase_id, max(p.purchase_time) as purchase_time,
+sum(pi.quantity) as total_quantity, sum(pi.total_amount_paid) as total_amount_paid
+from purchase p
+join customer c
+on c.customer_id = p.customer_id
+join purchase_item pi
+on pi.purchase_id = p.purchase_id
+group by p.customer_id, c.first_name, c.last_name, c.email
+
+##Query 6 Result:
+customer_id	first_name	last_name	email	             purchase_id	purchase_time	      total_quantity	total_amount_paid
+1	          James	    Smith	jamessmith@example.com	     102	2019-06-14T19:36:46.652442Z	    8	      2337.5
+3	          John	    Williams	johnwilliams@example.com 104	2019-06-14T19:36:46.65245Z	    1	      60
+5          	  Michael	Garcia	michaelgarcia@example.com	 105	2019-06-14T19:36:46.652453Z	    1	      400
+2	          Mary	    Johnson	maryjohnson@example.com	     103	2019-06-14T19:36:46.652448Z	    4	      4190
+
+##Query 6 Solution with window function:
+SELECT *
+FROM
+(SELECT c.customer_id, first_name, last_name, email,
+p.purchase_id, MAX(purchase_time) as purchase_time,
+SUM(quantity) OVER(PARTITION BY c.customer_id ORDER BY p.purchase_id) as total_quantity,
+SUM(total_amount_paid) OVER(PARTITION BY c.customer_id ORDER BY p.purchase_id) as total_amount_paid
+FROM customer c
+INNER JOIN purchase p
+ON c.customer_id = p.customer_id
+INNER JOIN purchase_item pi
+ON p.purchase_id = pi.purchase_id
+GROUP BY c.customer_id, p.purchase_id, pi.quantity, pi.total_amount_paid) X
+WHERE X.purchase_id IN(SELECT MAX(p.purchase_id) FROM customer c
+                       INNER JOIN purchase p ON c.customer_id = p.customer_id
+                       GROUP BY c.customer_id)
+
+##Query 6 Result:
+##(Not optimal, has a duplicate customer_id 102 Mary Johnson... needs tweaking.  Otherwise, result the same as above)
+customer_id	first_name	last_name	email	             purchase_id	purchase_time	      total_quantity	total_amount_paid
+1	        James	    Smith	jamessmith@example.com	   102	2019-06-14T19:36:46.652442Z	    8	            2337.5
+2	        Mary	    Johnson	maryjohnson@example.com	   103	2019-06-14T19:36:46.652448Z	    4	            4190
+2	        Mary	    Johnson	maryjohnson@example.com	   103	2019-06-14T19:36:46.652448Z	    4	            4190
+3	        John	    Williams johnwilliams@example.com  104	2019-06-14T19:36:46.65245Z	    1	            60
+5	        Michael	    Garcia	michaelgarcia@example.com  105	2019-06-14T19:36:46.652453Z	    1	            400
